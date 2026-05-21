@@ -1,0 +1,16 @@
+# Xcode / Swift
+build/
+DerivedData/
+*.xcworkspace
+*.xcuserstate
+*.xcscmblueprint
+
+# User-specific Xcode data
+*.xcuserdata/
+
+# macOS
+.DS_Store
+
+# Logs
+*.log
+
