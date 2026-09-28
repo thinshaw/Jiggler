@@ -101,24 +101,13 @@ struct ContentView: View {
     }
 
     private var countersBlock: some View {
-        HStack {
-            Label("Next check in \(engine.nextJiggleIn)s", systemImage: "timer")
-            Spacer()
-            idleLabel
-        }
-        .font(.caption)
-        .foregroundColor(engine.mouseIdleSeconds >= engine.idleThresholdSeconds ? .green : .secondary)
-        .padding(.top, 4)
-    }
-
-    private var idleLabel: some View {
-        let idle = engine.mouseIdleSeconds
-        let threshold = engine.idleThresholdSeconds
-        let ready = idle >= threshold
-        return Label(
-            ready ? "Idle \(idleStr(idle)) ✓" : "Idle \(idleStr(idle)) / \(idleStr(threshold))",
-            systemImage: ready ? "checkmark.circle.fill" : "clock"
+        Label(
+            engine.isWaitingForInputToStop ? "Waiting for input to stop" : "Next jiggle in \(engine.nextJiggleIn)s",
+            systemImage: engine.isWaitingForInputToStop ? "pause.circle" : "timer"
         )
+        .font(.caption)
+        .foregroundColor(.secondary)
+        .padding(.top, 4)
     }
 
     // MARK: - Settings section
@@ -126,20 +115,9 @@ struct ContentView: View {
     private var settingsSection: some View {
         VStack(alignment: .leading, spacing: 14) {
             row(label: "Jiggle every") {
-                Text("1–4 min (random)")
+                Text("1–4 min after input stops")
                     .foregroundStyle(.secondary)
                     .font(.callout)
-            }
-
-            row(label: "Min idle before jiggling") {
-                Picker("", selection: $engine.idleThresholdSeconds) {
-                    Text("1 min").tag(60)
-                    Text("2 min").tag(120)
-                    Text("3 min").tag(180)
-                    Text("5 min").tag(300)
-                }
-                .pickerStyle(.menu)
-                .disabled(engine.isActive)
             }
 
             VStack(alignment: .leading, spacing: 6) {
@@ -242,9 +220,5 @@ struct ContentView: View {
             Spacer()
             content()
         }
-    }
-
-    private func idleStr(_ s: Int) -> String {
-        s < 60 ? "\(s)s" : "\(s / 60)m \(s % 60)s"
     }
 }
