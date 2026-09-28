@@ -61,15 +61,12 @@ class JigglerEngine: ObservableObject {
     private var nextJiggleAt: Date?
     private var lastBatteryCheckAt: Date = .distantPast
     private var lastUserInputAt: Date = Date()
-    private var ignoreMouseMovedUntil: Date = .distantPast
     private let syntheticMarker: Int64 = 0x4A494747  // "JIGG"
     private let maintenanceInterval: TimeInterval = 5
     private let batteryCheckInterval: TimeInterval = 60
     private let inputSettleDelay: TimeInterval = 5
-    private let mousePathPointCount = 10
-    private let mousePathCoverage: CGFloat = 0.5
-    private let mousePathStepDelay: TimeInterval = 0.12
-    private let mousePathMargin: CGFloat = 20
+    private let mouseNudgeDistance: ClosedRange<CGFloat> = 2...4
+    private let mouseNudgeDelay: TimeInterval = 0.15
 
     // MARK: - Init
 
@@ -128,7 +125,7 @@ class JigglerEngine: ObservableObject {
     }
 
     func testMouseMove() {
-        performMouseMove(pointCount: mousePathPointCount, stepDelay: mousePathStepDelay)
+        performMouseMove()
     }
 
     private func start() {
@@ -231,7 +228,6 @@ class JigglerEngine: ObservableObject {
 
         DispatchQueue.main.async { [weak self] in
             guard let self, self.isActive else { return }
-            if event.type == .mouseMoved && Date() < self.ignoreMouseMovedUntil { return }
             self.lastUserInputAt = Date()
             if self.nextJiggleAt != nil || !self.isWaitingForInputToStop {
                 self.moveGeneration += 1
@@ -265,8 +261,6 @@ class JigglerEngine: ObservableObject {
     // MARK: - Mouse move animation
 
     private func moveCursor(to point: CGPoint) {
-        ignoreMouseMovedUntil = Date().addingTimeInterval(0.25)
-        CGWarpMouseCursorPosition(point)
         let source = CGEventSource(stateID: .hidSystemState)
         let event = CGEvent(mouseEventSource: source, mouseType: .mouseMoved,
                             mouseCursorPosition: point, mouseButton: .left)
@@ -275,46 +269,21 @@ class JigglerEngine: ObservableObject {
     }
 
     private func performMouseMove() {
-        performMouseMove(pointCount: mousePathPointCount, stepDelay: mousePathStepDelay)
-    }
-
-    private func performMouseMove(pointCount: Int, stepDelay: TimeInterval) {
         guard let startCG = CGEvent(source: nil)?.location else { return }
 
         let bounds = displayBounds(containing: startCG)
-        let insetBounds = bounds.insetBy(dx: mousePathMargin, dy: mousePathMargin)
-        let pathBounds = pathBounds(around: startCG, in: insetBounds, coverage: mousePathCoverage)
+        let distance = CGFloat.random(in: mouseNudgeDistance)
+        let dx = startCG.x + distance < bounds.maxX ? distance : -distance
+        let target = CGPoint(x: startCG.x + dx, y: startCG.y)
 
         moveGeneration += 1
         let gen = moveGeneration
 
-        let targets = randomMousePath(pointCount: pointCount, in: pathBounds, returningTo: startCG)
-
-        for (i, target) in targets.enumerated() {
-            DispatchQueue.main.asyncAfter(deadline: .now() + Double(i) * stepDelay) { [weak self] in
-                guard let self, self.moveGeneration == gen else { return }
-                self.moveCursor(to: target)
-            }
+        moveCursor(to: target)
+        DispatchQueue.main.asyncAfter(deadline: .now() + mouseNudgeDelay) { [weak self] in
+            guard let self, self.moveGeneration == gen else { return }
+            self.moveCursor(to: startCG)
         }
-    }
-
-    private func randomMousePath(pointCount: Int, in bounds: CGRect, returningTo start: CGPoint) -> [CGPoint] {
-        var targets = (0..<pointCount).map { _ in
-            CGPoint(
-                x: CGFloat.random(in: bounds.minX...bounds.maxX),
-                y: CGFloat.random(in: bounds.minY...bounds.maxY)
-            )
-        }
-        targets.append(start)
-        return targets
-    }
-
-    private func pathBounds(around point: CGPoint, in bounds: CGRect, coverage: CGFloat) -> CGRect {
-        let width = max(1, bounds.width * coverage)
-        let height = max(1, bounds.height * coverage)
-        let x = max(bounds.minX, min(bounds.maxX - width, point.x - width / 2))
-        let y = max(bounds.minY, min(bounds.maxY - height, point.y - height / 2))
-        return CGRect(x: x, y: y, width: width, height: height)
     }
 
     private func displayBounds(containing point: CGPoint) -> CGRect {
